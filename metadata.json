@@ -1,0 +1,5 @@
+{
+  "name": "Nordsee Netzplaner",
+  "description": "Ein interaktives Tool zur Planung von Stromnetzen in der Nordsee-Region mit automatischer Verbindungsoptimierung und Distanzberechnung.",
+  "requestFramePermissions": []
+}

@@ -45,6 +45,7 @@ function App() {
   
   const [mode, setMode] = useState<'VIEW' | 'ADD_NODE' | 'ADD_LINK' | 'ADD_STATION' | 'MEASURE' | 'DELETE' | 'MOVE_STATION'>('VIEW');
   const [selectedStationType, setSelectedStationType] = useState<StationType | null>(null);
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   
   // Reuse this for selecting a node (to link OR to edit)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -398,6 +399,10 @@ function App() {
     setGridNodes(nodes => nodes.map(n => n.id === updatedNode.id ? updatedNode : n));
   };
 
+  const handleUpdateStation = (updatedStation: Station) => {
+    setStations(stations => stations.map(s => s.id === updatedStation.id ? updatedStation : s));
+  };
+
   const handleDeleteNode = (nodeId: string) => {
     setGridNodes(nodes => nodes.filter(n => n.id !== nodeId));
     setGridLinks(links => links.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
@@ -407,8 +412,9 @@ function App() {
   const handleStationClick = (id: string) => {
       if (mode === 'DELETE') {
           setStations(prev => prev.filter(s => s.id !== id));
+          if (selectedStationId === id) setSelectedStationId(null);
       } else if (mode === 'VIEW') {
-         // Allow selecting for moving (via sidebar)
+         setSelectedStationId(id === selectedStationId ? null : id);
       }
   };
 
@@ -470,12 +476,26 @@ function App() {
     } else {
         // In View mode, clicking map deselects node
         setSelectedNodeId(null);
+        setSelectedStationId(null);
     }
   };
 
   const handleNodeClick = (id: string) => {
     if (mode === 'DELETE') {
         handleDeleteNode(id);
+        return;
+    }
+
+    if (mode === 'MEASURE') {
+        const node = gridNodes.find(n => n.id === id);
+        if (node) {
+            const newPoints = [...measurePoints, node.position];
+            if (newPoints.length > 2) {
+                setMeasurePoints([node.position]);
+            } else {
+                setMeasurePoints(newPoints);
+            }
+        }
         return;
     }
 
@@ -531,7 +551,42 @@ function App() {
       setMeasurePoints([]);
   };
 
+  const handleExport = (type: 'BASIC' | 'FULL') => {
+      const data = {
+          gridNodes,
+          gridLinks,
+          stations: type === 'FULL' ? stations : []
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nordsee-netzplaner-${type.toLowerCase()}-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const content = e.target?.result as string;
+              const data = JSON.parse(content);
+              if (data.gridNodes && Array.isArray(data.gridNodes)) setGridNodes(data.gridNodes);
+              if (data.gridLinks && Array.isArray(data.gridLinks)) setGridLinks(data.gridLinks);
+              if (data.stations && Array.isArray(data.stations)) setStations(data.stations);
+              // Clear selection
+              setSelectedNodeId(null);
+              setSelectedStationId(null);
+          } catch (err) {
+              alert('Fehler beim Importieren der Datei: Ungültiges Format');
+          }
+      };
+      reader.readAsText(file);
+  };
+
   const selectedNode = gridNodes.find(n => n.id === selectedNodeId) || null;
+  const selectedStation = stations.find(s => s.id === selectedStationId) || null;
 
   return (
     <div className="flex h-screen w-screen bg-gray-100 overflow-hidden fixed inset-0">
@@ -543,16 +598,20 @@ function App() {
             mode={mode}
             selectedStationType={selectedStationType}
             selectedNode={selectedNode}
+            selectedStation={selectedStation}
             measurePoints={measurePoints}
             setMode={(m) => {
                 setMode(m);
                 setSelectedNodeId(null);
+                setSelectedStationId(null);
             }}
             setStationType={setSelectedStationType}
             onRemoveStation={(id) => setStations(stations.filter(s => s.id !== id))}
             onResetGrid={resetGrid}
             onClearGrid={clearGrid}
             onUpdateNode={handleUpdateNode}
+            onUpdateStation={handleUpdateStation}
+            onSelectStation={setSelectedStationId}
             onAddNode={handleAddNodeManual}
             onDeleteNode={handleDeleteNode}
             onClearMeasurement={handleClearMeasurement}
@@ -560,6 +619,8 @@ function App() {
                 setMovingStationId(id);
                 setMode('MOVE_STATION');
             }}
+            onExportGrid={handleExport}
+            onImportGrid={handleImport}
         />
       </div>
 
@@ -574,6 +635,7 @@ function App() {
             mode={mode}
             selectedStationType={selectedStationType}
             selectedNodeId={selectedNodeId}
+            selectedStationId={selectedStationId}
             onMapClick={handleMapClick}
             onNodeClick={handleNodeClick}
             onStationClick={handleStationClick}

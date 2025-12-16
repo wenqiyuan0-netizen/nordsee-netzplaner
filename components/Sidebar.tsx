@@ -10,6 +10,7 @@ interface SidebarProps {
   mode: 'VIEW' | 'ADD_NODE' | 'ADD_LINK' | 'ADD_STATION' | 'MEASURE' | 'DELETE';
   selectedStationType: StationType | null;
   selectedNode: GridNode | null;
+  selectedStation: Station | null;
   measurePoints: LatLng[];
   setMode: (m: 'VIEW' | 'ADD_NODE' | 'ADD_LINK' | 'ADD_STATION' | 'MEASURE' | 'DELETE') => void;
   setStationType: (t: StationType) => void;
@@ -17,10 +18,14 @@ interface SidebarProps {
   onResetGrid: () => void;
   onClearGrid: () => void;
   onUpdateNode: (node: GridNode) => void;
+  onUpdateStation: (station: Station) => void;
+  onSelectStation: (id: string | null) => void;
   onAddNode: (node: GridNode) => void;
   onDeleteNode: (id: string) => void;
   onClearMeasurement: () => void;
   onMoveStation: (id: string) => void;
+  onExportGrid: (type: 'BASIC' | 'FULL') => void;
+  onImportGrid: (file: File) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mode,
   selectedStationType,
   selectedNode,
+  selectedStation,
   measurePoints,
   setMode,
   setStationType,
@@ -36,10 +42,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onResetGrid,
   onClearGrid,
   onUpdateNode,
+  onUpdateStation,
+  onSelectStation,
   onAddNode,
   onDeleteNode,
   onClearMeasurement,
-  onMoveStation
+  onMoveStation,
+  onExportGrid,
+  onImportGrid
 }) => {
   const stationTypes = Object.values(StationType).filter(t => t !== StationType.Hauptstandort);
   const mainHub = stations.find(s => s.type === StationType.Hauptstandort);
@@ -74,6 +84,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="p-4 space-y-6 flex-1">
         
+        {/* Station Editor Section - Visible when a station is selected */}
+        {selectedStation && (
+            <div className="bg-orange-50 border border-orange-200 rounded-md p-3 space-y-3">
+                <div className="flex items-center justify-between text-orange-800">
+                    <h3 className="font-bold text-sm flex items-center gap-2">
+                        <MapPin size={16}/> Kraftwerk bearbeiten
+                    </h3>
+                    <button onClick={() => onSelectStation(null)} className="text-orange-500 hover:bg-orange-100 p-1 rounded" title="Schließen">
+                        <X size={16} />
+                    </button>
+                </div>
+                
+                <div className="space-y-2">
+                    <div className="text-xs font-semibold text-orange-700 mb-1">
+                        {selectedStation.type}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="block text-xs font-semibold text-orange-700 mb-1">Breitengrad</label>
+                            <input 
+                                type="number" 
+                                step="0.0001"
+                                value={selectedStation.position.lat} 
+                                onChange={(e) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lat: parseFloat(e.target.value)}})}
+                                className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-orange-300 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-orange-700 mb-1">Längengrad</label>
+                            <input 
+                                type="number" 
+                                step="0.0001"
+                                value={selectedStation.position.lng} 
+                                onChange={(e) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lng: parseFloat(e.target.value)}})}
+                                className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-orange-300 outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Node Editor Section - Visible when a node is selected */}
         {selectedNode && (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-3">
@@ -186,6 +238,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )
                 })}
             </div>
+            
+            {/* List of added stations with coordinates */}
+            {stations.filter(s => s.type !== StationType.Hauptstandort).length > 0 && (
+                <div className="mt-4 space-y-1">
+                    <h3 className="text-xs font-semibold text-slate-500 mb-2">Vorhandene Kraftwerke</h3>
+                    {stations.filter(s => s.type !== StationType.Hauptstandort).map(station => {
+                        const config = StationIconConfig[station.type];
+                        const Icon = config.icon;
+                        const isSelected = selectedStation?.id === station.id;
+                        
+                        return (
+                            <div key={station.id} className={`border rounded text-xs transition-colors ${isSelected ? 'bg-orange-50 border-orange-200' : 'bg-white hover:bg-slate-50 border-slate-200'}`}>
+                                {/* Header / Summary Row */}
+                                <div 
+                                    className="p-2 flex items-center justify-between cursor-pointer"
+                                    onClick={() => onSelectStation(isSelected ? null : station.id)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Icon size={16} color={config.color}/>
+                                        <span className={`font-medium ${isSelected ? 'text-orange-800' : 'text-slate-700'}`}>
+                                            {station.type}
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-1 items-center">
+                                        {/* Show simple coordinates when collapsed */}
+                                        {!isSelected && (
+                                            <span className="text-[10px] text-slate-400 mr-1">
+                                                {station.position.lat.toFixed(2)}, {station.position.lng.toFixed(2)}
+                                            </span>
+                                        )}
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onRemoveStation(station.id);
+                                            }}
+                                            className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded transition-colors"
+                                            title="Entfernen"
+                                        >
+                                            <Trash2 size={12}/>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Expanded Editor */}
+                                {isSelected && (
+                                    <div className="px-2 pb-2 pt-0 border-t border-orange-100 mt-1">
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                            <div>
+                                                <label className="block text-[10px] font-semibold text-orange-700 mb-0.5">Breite</label>
+                                                <input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    value={station.position.lat}
+                                                    onChange={(e) => onUpdateStation({...station, position: {...station.position, lat: parseFloat(e.target.value)}})}
+                                                    className="w-full p-1.5 border border-orange-200 rounded bg-white focus:ring-1 focus:ring-orange-300 outline-none text-orange-900"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-semibold text-orange-700 mb-0.5">Länge</label>
+                                                <input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    value={station.position.lng}
+                                                    onChange={(e) => onUpdateStation({...station, position: {...station.position, lng: parseFloat(e.target.value)}})}
+                                                    className="w-full p-1.5 border border-orange-200 rounded bg-white focus:ring-1 focus:ring-orange-300 outline-none text-orange-900"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
 
         {/* Grid Editor Tools */}
@@ -301,6 +428,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
              )}
         </div>
 
+        {/* Import / Export Section */}
+        <div className="space-y-3 border-t pt-4">
+             <h2 className="text-sm font-semibold uppercase text-slate-500 tracking-wider">Datei</h2>
+             <div className="grid grid-cols-2 gap-2">
+                 <button 
+                    onClick={() => onExportGrid('BASIC')}
+                    className="p-2 text-xs rounded border hover:bg-slate-50 flex items-center justify-center"
+                 >
+                    <Save size={14} className="mr-1"/> Basis-Netz
+                 </button>
+                 <button 
+                    onClick={() => onExportGrid('FULL')}
+                    className="p-2 text-xs rounded border hover:bg-slate-50 flex items-center justify-center"
+                 >
+                    <Save size={14} className="mr-1"/> Gesamt-Netz
+                 </button>
+             </div>
+             <label className="block w-full cursor-pointer">
+                 <span className="sr-only">Datei importieren</span>
+                 <div className="w-full p-2 text-xs text-center rounded border border-dashed hover:border-blue-500 hover:text-blue-600 transition-colors">
+                    Datei importieren (JSON)
+                 </div>
+                 <input 
+                    type="file" 
+                    className="hidden" 
+                    accept=".json"
+                    onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                            onImportGrid(e.target.files[0]);
+                        }
+                    }}
+                 />
+             </label>
+        </div>
+
         {/* Analysis Section */}
         {mainHub && stations.length > 1 && (
             <div className="space-y-3 border-t pt-4">
@@ -357,7 +519,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             {stations.filter(s => s.type !== StationType.Hauptstandort).map(s => {
                                 const calc = calculations[s.id];
                                 return (
-                                    <tr key={s.id} className="border-b border-slate-100">
+                                    <tr 
+                                        key={s.id} 
+                                        className={`border-b border-slate-100 cursor-pointer transition-colors ${selectedStation?.id === s.id ? 'bg-orange-50' : 'hover:bg-slate-50'}`}
+                                        onClick={() => onSelectStation(selectedStation?.id === s.id ? null : s.id)}
+                                    >
                                         <td className="py-2 font-medium">{s.type.substring(0, 10)}...</td>
                                         <td className="py-2 text-right text-slate-500">
                                             {calc ? `${Math.round(calc.geoDistance)} km` : '-'}
@@ -365,7 +531,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         <td className="py-2 text-right font-mono font-bold text-blue-600">
                                             {calc ? `${Math.round(calc.cableDistance)} km` : '-'}
                                         </td>
-                                        <td className="py-1 pl-2 flex items-center justify-end gap-1">
+                                        <td className="py-1 pl-2 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                                             <button 
                                                 onClick={() => onMoveStation(s.id)} 
                                                 className="text-slate-400 hover:text-blue-500"

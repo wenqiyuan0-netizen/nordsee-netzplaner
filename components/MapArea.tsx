@@ -26,6 +26,7 @@ interface MapAreaProps {
   mode: 'VIEW' | 'ADD_NODE' | 'ADD_LINK' | 'ADD_STATION' | 'MEASURE' | 'DELETE';
   selectedStationType: StationType | null;
   selectedNodeId: string | null;
+  selectedStationId: string | null;
   onMapClick: (pos: LatLng) => void;
   onNodeClick: (id: string) => void;
   onStationClick: (id: string) => void;
@@ -68,11 +69,11 @@ export const MapArea: React.FC<MapAreaProps> = ({
   measurePoints,
   mode,
   selectedNodeId,
+  selectedStationId,
   onMapClick,
   onNodeClick,
   onStationClick,
 }) => {
-  const [selectedStationId, setSelectedStationId] = React.useState<string | null>(null);
 
   return (
     <div className="h-full w-full relative">
@@ -137,7 +138,7 @@ export const MapArea: React.FC<MapAreaProps> = ({
             <CircleMarker
             key={node.id}
             center={node.position}
-            radius={node.id === selectedNodeId ? 8 : 6}
+            radius={node.id === selectedNodeId ? 12 : 10}
             pathOptions={{
                 color: '#333',
                 weight: 2,
@@ -170,7 +171,7 @@ export const MapArea: React.FC<MapAreaProps> = ({
                             eventHandlers={{
                                 click: (e) => {
                                     L.DomEvent.stopPropagation(e);
-                                    setSelectedStationId(isSelected ? null : station.id);
+                                    onStationClick(station.id);
                                 }
                             }}
                         >
@@ -189,11 +190,7 @@ export const MapArea: React.FC<MapAreaProps> = ({
                         eventHandlers={{
                             click: (e) => {
                                 L.DomEvent.stopPropagation(e);
-                                if (mode === 'DELETE') {
-                                    onStationClick(station.id);
-                                } else {
-                                    setSelectedStationId(isSelected ? null : station.id);
-                                }
+                                onStationClick(station.id);
                             }
                         }}
                     >

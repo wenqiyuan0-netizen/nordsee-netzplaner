@@ -28,6 +28,71 @@ interface SidebarProps {
   onImportGrid: (file: File) => void;
 }
 
+const CoordinateInput = ({ 
+    value, 
+    onChange, 
+    step = "0.01", 
+    className = "",
+    placeholder = ""
+}: { 
+    value: number | undefined, 
+    onChange: (val: number) => void, 
+    step?: string,
+    className?: string,
+    placeholder?: string
+}) => {
+    const [localValue, setLocalValue] = useState(value !== undefined ? value.toFixed(2) : '');
+    const [isEditing, setIsEditing] = useState(false);
+
+    React.useEffect(() => {
+        if (!isEditing && value !== undefined) {
+            setLocalValue(value.toFixed(2));
+        }
+    }, [value, isEditing]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newVal = e.target.value;
+        setLocalValue(newVal);
+        
+        const parsed = parseFloat(newVal);
+        if (!isNaN(parsed)) {
+             // Round to 2 decimals as requested
+             const rounded = Math.round(parsed * 100) / 100;
+             onChange(rounded);
+        }
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        const parsed = parseFloat(localValue);
+        
+        if (isNaN(parsed) || localValue.trim() === '') {
+            // Revert to original value if empty/invalid
+            if (value !== undefined) {
+                setLocalValue(value.toFixed(2));
+            }
+        } else {
+            // Format to 2 decimals
+            const rounded = Math.round(parsed * 100) / 100;
+            setLocalValue(rounded.toFixed(2));
+            onChange(rounded);
+        }
+    };
+
+    return (
+        <input
+            type="number"
+            step={step}
+            value={localValue}
+            onChange={handleChange}
+            onFocus={() => setIsEditing(true)}
+            onBlur={handleBlur}
+            className={className}
+            placeholder={placeholder}
+        />
+    );
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
   stations,
   calculations,
@@ -103,21 +168,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="block text-xs font-semibold text-orange-700 mb-1">Breitengrad</label>
-                            <input 
-                                type="number" 
-                                step="0.0001"
+                            <CoordinateInput
                                 value={selectedStation.position.lat} 
-                                onChange={(e) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lat: parseFloat(e.target.value)}})}
+                                onChange={(val) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lat: val}})}
                                 className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-orange-300 outline-none"
                             />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-orange-700 mb-1">Längengrad</label>
-                            <input 
-                                type="number" 
-                                step="0.0001"
+                            <CoordinateInput
                                 value={selectedStation.position.lng} 
-                                onChange={(e) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lng: parseFloat(e.target.value)}})}
+                                onChange={(val) => onUpdateStation({...selectedStation, position: {...selectedStation.position, lng: val}})}
                                 className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-orange-300 outline-none"
                             />
                         </div>
@@ -152,21 +213,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="block text-xs font-semibold text-blue-700 mb-1">Breitengrad</label>
-                            <input 
-                                type="number" 
-                                step="0.0001"
+                            <CoordinateInput
                                 value={selectedNode.position.lat} 
-                                onChange={(e) => onUpdateNode({...selectedNode, position: {...selectedNode.position, lat: parseFloat(e.target.value)}})}
+                                onChange={(val) => onUpdateNode({...selectedNode, position: {...selectedNode.position, lat: val}})}
                                 className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-blue-300 outline-none"
                             />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-blue-700 mb-1">Längengrad</label>
-                            <input 
-                                type="number" 
-                                step="0.0001"
+                            <CoordinateInput
                                 value={selectedNode.position.lng} 
-                                onChange={(e) => onUpdateNode({...selectedNode, position: {...selectedNode.position, lng: parseFloat(e.target.value)}})}
+                                onChange={(val) => onUpdateNode({...selectedNode, position: {...selectedNode.position, lng: val}})}
                                 className="w-full text-sm p-1.5 border rounded focus:ring-2 focus:ring-blue-300 outline-none"
                             />
                         </div>
@@ -287,21 +344,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         <div className="grid grid-cols-2 gap-2 mt-2">
                                             <div>
                                                 <label className="block text-[10px] font-semibold text-orange-700 mb-0.5">Breite</label>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.01"
+                                                <CoordinateInput
                                                     value={station.position.lat}
-                                                    onChange={(e) => onUpdateStation({...station, position: {...station.position, lat: parseFloat(e.target.value)}})}
+                                                    onChange={(val) => onUpdateStation({...station, position: {...station.position, lat: val}})}
                                                     className="w-full p-1.5 border border-orange-200 rounded bg-white focus:ring-1 focus:ring-orange-300 outline-none text-orange-900"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-semibold text-orange-700 mb-0.5">Länge</label>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.01"
+                                                <CoordinateInput
                                                     value={station.position.lng}
-                                                    onChange={(e) => onUpdateStation({...station, position: {...station.position, lng: parseFloat(e.target.value)}})}
+                                                    onChange={(val) => onUpdateStation({...station, position: {...station.position, lng: val}})}
                                                     className="w-full p-1.5 border border-orange-200 rounded bg-white focus:ring-1 focus:ring-orange-300 outline-none text-orange-900"
                                                 />
                                             </div>
@@ -354,20 +407,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="text-xs text-slate-500">Breite</label>
-                            <input 
-                                type="number" step="0.1" placeholder="Lat"
+                            <CoordinateInput
                                 value={manualNode.position?.lat}
-                                onChange={e => setManualNode({...manualNode, position: {...manualNode.position!, lat: parseFloat(e.target.value)}})}
+                                onChange={(val) => setManualNode({...manualNode, position: {...manualNode.position!, lat: val}})}
                                 className="w-full p-1 border rounded"
+                                placeholder="Lat"
                             />
                         </div>
                         <div>
                             <label className="text-xs text-slate-500">Länge</label>
-                            <input 
-                                type="number" step="0.1" placeholder="Lng"
+                            <CoordinateInput
                                 value={manualNode.position?.lng}
-                                onChange={e => setManualNode({...manualNode, position: {...manualNode.position!, lng: parseFloat(e.target.value)}})}
+                                onChange={(val) => setManualNode({...manualNode, position: {...manualNode.position!, lng: val}})}
                                 className="w-full p-1 border rounded"
+                                placeholder="Lng"
                             />
                         </div>
                     </div>

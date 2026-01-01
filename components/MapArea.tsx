@@ -30,6 +30,7 @@ interface MapAreaProps {
   onMapClick: (pos: LatLng) => void;
   onNodeClick: (id: string) => void;
   onStationClick: (id: string) => void;
+  onStationMove: (id: string, pos: LatLng) => void;
 }
 
 const MapEvents: React.FC<{ onClick: (pos: LatLng) => void }> = ({ onClick }) => {
@@ -73,7 +74,12 @@ export const MapArea: React.FC<MapAreaProps> = ({
   onMapClick,
   onNodeClick,
   onStationClick,
+  onStationMove,
 }) => {
+  // Use ref to track dragging state and ghost marker to avoid re-renders during drag
+  const ghostMarkerRef = React.useRef<L.Marker | null>(null);
+  const draggingIdRef = React.useRef<string | null>(null);
+  const lineRefs = React.useRef<Record<string, L.Polyline>>({});
 
   return (
     <div className="h-full w-full relative">
@@ -166,8 +172,16 @@ export const MapArea: React.FC<MapAreaProps> = ({
                     {/* Connection Line to Grid */}
                     {station.connectionPoint && (
                         <Polyline
+                            ref={(el) => {
+                                if (el) lineRefs.current[station.id] = el;
+                                else delete lineRefs.current[station.id];
+                            }}
                             positions={[station.position, station.connectionPoint]}
-                            pathOptions={{ color: isSelected ? '#f59e0b' : '#2563eb', dashArray: '10, 10', weight: isSelected ? 4 : 2 }}
+                            pathOptions={{ 
+                                color: isSelected ? '#f59e0b' : '#2563eb', 
+                                dashArray: '10, 10', 
+                                weight: isSelected ? 4 : 2,
+                            }}
                             eventHandlers={{
                                 click: (e) => {
                                     L.DomEvent.stopPropagation(e);
@@ -183,14 +197,55 @@ export const MapArea: React.FC<MapAreaProps> = ({
                         </Polyline>
                     )}
                     
-                    {/* The Station Marker */}
+                    {/* The Station Marker (Draggable) */}
                     <Marker
                         position={station.position}
+                        draggable={true}
                         icon={createStationIcon(station.type)}
                         eventHandlers={{
                             click: (e) => {
-                                L.DomEvent.stopPropagation(e);
-                                onStationClick(station.id);
+                                // Prevent click when ending drag
+                                if (!draggingIdRef.current) {
+                                    L.DomEvent.stopPropagation(e);
+                                    onStationClick(station.id);
+                                }
+                            },
+                            dragstart: (e) => {
+                                draggingIdRef.current = station.id;
+                                const map = e.target._map;
+                                
+                                // Create Ghost Marker (Manual Leaflet Layer)
+                                const ghost = L.marker(station.position, { 
+                                    icon: createStationIcon(station.type), 
+                                    opacity: 0.3,
+                                    interactive: false // Ignore events on ghost
+                                }).addTo(map);
+                                ghostMarkerRef.current = ghost;
+
+                                // Fade the connection line if exists
+                                const line = lineRefs.current[station.id];
+                                if (line) {
+                                    line.setStyle({ opacity: 0.3 });
+                                }
+                            },
+                            dragend: (e) => {
+                                draggingIdRef.current = null;
+                                
+                                // Remove Ghost Marker
+                                if (ghostMarkerRef.current) {
+                                    ghostMarkerRef.current.remove();
+                                    ghostMarkerRef.current = null;
+                                }
+
+                                // Restore line opacity
+                                const line = lineRefs.current[station.id];
+                                if (line) {
+                                    line.setStyle({ opacity: 1 }); // Or 0.7 if default? Default seems to be 1 or implicit
+                                }
+
+                                const marker = e.target;
+                                const position = marker.getLatLng();
+                                onStationMove(station.id, position);
                             }
                         }}
                     >

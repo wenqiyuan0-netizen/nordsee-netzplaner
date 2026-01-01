@@ -5,42 +5,12 @@ import { Sidebar } from './components/Sidebar';
 import { GridNode, GridLink, Station, StationType, LatLng, NetworkCalculation } from './types';
 import { getDistance, projectPointOnSegment, findShortestPath } from './utils/geometry';
 import { findOptimalPointOnSegment, findTargetPointOnSegment } from './utils/optimization';
-
-// Initial Grid Data based on description
-const INITIAL_NODES: GridNode[] = [
-  { id: 'n1', position: { lat: 60.5, lng: 9.0 }, name: 'Südnorwegen', isFixed: true },
-  { id: 'n2', position: { lat: 63.0, lng: 14.5 }, name: 'Zentralschweden', isFixed: true },
-  { id: 'n3', position: { lat: 59.5, lng: 13.5 }, name: 'Süd-Schweden', isFixed: true }, // Värmland area
-  { id: 'n4', position: { lat: 57.7, lng: 11.9 }, name: 'Göteborg', isFixed: true },
-  { id: 'n5', position: { lat: 56.1, lng: 10.2 }, name: 'Dänemark (Aarhus)', isFixed: true },
-  { id: 'n6', position: { lat: 53.5, lng: 9.9 }, name: 'Hamburg', isFixed: true },
-  { id: 'n7', position: { lat: 52.3, lng: 9.7 }, name: 'Hannover (Niedersachsen)', isFixed: true },
-  { id: 'n8', position: { lat: 54.0, lng: 12.1 }, name: 'Rostock (MVP)', isFixed: true },
-  // Adding specific nodes from image approximation
-  { id: 'n9', position: { lat: 58.5, lng: 7.5 }, name: 'Norwegen Südspitze', isFixed: true },
-  { id: 'n10', position: { lat: 55.5, lng: 8.4 }, name: 'Esbjerg', isFixed: true }, 
-  { id: 'n11', position: { lat: 53.5, lng: 6.8 }, name: 'Nordsee Küste', isFixed: true }, 
-];
-
-const INITIAL_LINKS: GridLink[] = [
-  { id: 'l1', sourceId: 'n1', targetId: 'n2' }, // NO-SE
-  { id: 'l2', sourceId: 'n1', targetId: 'n3' }, 
-  { id: 'l3', sourceId: 'n3', targetId: 'n2' },
-  { id: 'l4', sourceId: 'n3', targetId: 'n4' }, // To Göteborg
-  { id: 'l5', sourceId: 'n9', targetId: 'n4' }, // NO Tip - Göteborg
-  { id: 'l6', sourceId: 'n9', targetId: 'n10' }, // NO - DK
-  { id: 'l7', sourceId: 'n4', targetId: 'n5' }, // SE - DK
-  { id: 'l8', sourceId: 'n5', targetId: 'n10' }, // DK internal
-  { id: 'l9', sourceId: 'n10', targetId: 'n6' }, // DK - DE
-  { id: 'l10', sourceId: 'n6', targetId: 'n7' }, // HH - H
-  { id: 'l11', sourceId: 'n6', targetId: 'n8' }, // HH - MVP
-  { id: 'l12', sourceId: 'n11', targetId: 'n6' }, // Coast - HH
-];
+import { INITIAL_NODES, INITIAL_LINKS, INITIAL_STATIONS } from './data';
 
 function App() {
   const [gridNodes, setGridNodes] = useState<GridNode[]>(INITIAL_NODES);
   const [gridLinks, setGridLinks] = useState<GridLink[]>(INITIAL_LINKS);
-  const [stations, setStations] = useState<Station[]>([]);
+  const [stations, setStations] = useState<Station[]>(INITIAL_STATIONS);
   const [calculations, setCalculations] = useState<Record<string, NetworkCalculation>>({});
   
   const [mode, setMode] = useState<'VIEW' | 'ADD_NODE' | 'ADD_LINK' | 'ADD_STATION' | 'MEASURE' | 'DELETE' | 'MOVE_STATION'>('VIEW');
@@ -237,17 +207,18 @@ function App() {
     }
 
     // 2. Calculate Optimal for ALL first
-    const calculatedConnections = new Map<string, { point: LatLng, linkId: string, dist: number }>();
+    const calculatedConnections = new Map<string, { point: LatLng, linkId?: string, dist: number }>();
     
     stations.forEach(s => {
         if (s.type === StationType.Hauptstandort) {
             if (newHubConnPoint && newHubConnLink) {
                 calculatedConnections.set(s.id, { point: newHubConnPoint, linkId: newHubConnLink, dist: 0 });
             }
-        } else if (s.type === StationType.Kaeltemaschine && hub && hubConn) {
+        } else if (s.type === StationType.Kaeltemaschine && hub) {
             // Special Case: Direct connection to Hauptstandort Station
+            // Does not depend on grid connection
             const dist = getDistance(s.position, hub.position);
-            calculatedConnections.set(s.id, { point: hub.position, linkId: hubConn.linkId, dist: dist });
+            calculatedConnections.set(s.id, { point: hub.position, linkId: undefined, dist: dist });
         } else if (hubConn) {
             const opt = calculateOptimalConnection(s.position, hubConn);
             if (opt) calculatedConnections.set(s.id, opt);
@@ -324,21 +295,39 @@ function App() {
                 // Geo Distance (Air Line)
                 const geoDist = getDistance(station.position, mainHub.position);
 
+                // Special Case: Kaeltemaschine (Direct Connection)
+                if (station.type === StationType.Kaeltemaschine) {
+                    newCalcs[station.id] = {
+                        geoDistance: geoDist,
+                        cableDistance: geoDist, // Direct connection, no grid travel
+                        path: [station.position, mainHub.position]
+                    };
+                    return;
+                }
+
                 // Cable Distance logic
                 // Station Connection is already stored
                 if (station.connectionPoint && station.connectedLinkId) {
                      const stConn = { point: station.connectionPoint, linkId: station.connectedLinkId, dist: getDistance(station.position, station.connectionPoint) };
 
-                    const linkS = gridLinks.find(l => l.id === stConn.linkId)!;
-                    const nodeS1 = gridNodes.find(n => n.id === linkS.sourceId)!;
-                    const nodeS2 = gridNodes.find(n => n.id === linkS.targetId)!;
+                    const linkS = gridLinks.find(l => l.id === stConn.linkId);
+                    if (!linkS) return;
+                    
+                    const nodeS1 = gridNodes.find(n => n.id === linkS.sourceId);
+                    const nodeS2 = gridNodes.find(n => n.id === linkS.targetId);
+
+                    if (!nodeS1 || !nodeS2) return;
 
                     const d_S_N1 = getDistance(stConn.point, nodeS1.position);
                     const d_S_N2 = getDistance(stConn.point, nodeS2.position);
 
-                    const linkH = gridLinks.find(l => l.id === hubConnection.linkId)!;
-                    const nodeH1 = gridNodes.find(n => n.id === linkH.sourceId)!;
-                    const nodeH2 = gridNodes.find(n => n.id === linkH.targetId)!;
+                    const linkH = gridLinks.find(l => l.id === hubConnection.linkId);
+                    if (!linkH) return;
+
+                    const nodeH1 = gridNodes.find(n => n.id === linkH.sourceId);
+                    const nodeH2 = gridNodes.find(n => n.id === linkH.targetId);
+                    
+                    if (!nodeH1 || !nodeH2) return;
 
                     const d_H_N1 = getDistance(hubConnection.point, nodeH1.position);
                     const d_H_N2 = getDistance(hubConnection.point, nodeH2.position);
@@ -404,8 +393,25 @@ function App() {
   };
 
   const handleDeleteNode = (nodeId: string) => {
+    // Identify links that will be removed
+    const linksToRemove = gridLinks.filter(l => l.sourceId === nodeId || l.targetId === nodeId);
+    const linkIdsToRemove = new Set(linksToRemove.map(l => l.id));
+
     setGridNodes(nodes => nodes.filter(n => n.id !== nodeId));
     setGridLinks(links => links.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
+    
+    // Reset stations that were connected to the removed links
+    setStations(prev => prev.map(s => {
+        if (s.connectedLinkId && linkIdsToRemove.has(s.connectedLinkId)) {
+             return {
+                 ...s,
+                 connectionPoint: undefined,
+                 connectedLinkId: undefined
+             };
+        }
+        return s;
+    }));
+
     setSelectedNodeId(null);
   };
 
@@ -416,6 +422,20 @@ function App() {
       } else if (mode === 'VIEW') {
          setSelectedStationId(id === selectedStationId ? null : id);
       }
+  };
+
+  const handleStationMove = (id: string, newPos: LatLng) => {
+      setStations(prev => prev.map(s => {
+          if (s.id === id) {
+              return {
+                  ...s,
+                  position: newPos,
+                  connectionPoint: undefined, // Let Effect recalculate
+                  connectedLinkId: undefined
+              };
+          }
+          return s;
+      }));
   };
 
   const handleMapClick = (pos: LatLng) => {
@@ -639,6 +659,7 @@ function App() {
             onMapClick={handleMapClick}
             onNodeClick={handleNodeClick}
             onStationClick={handleStationClick}
+            onStationMove={handleStationMove}
         />
         
         {/* Helper Badge for Modes */}

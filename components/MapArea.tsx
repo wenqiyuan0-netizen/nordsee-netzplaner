@@ -51,6 +51,8 @@ const MapEvents: React.FC<{ onClick: (pos: LatLng) => void }> = ({ onClick }) =>
   return null;
 };
 
+import { getDistance } from '../utils/geometry';
+
 // Helper to create custom div icons for stations
 const createStationIcon = (type: StationType) => {
     const html = renderToStaticMarkup(<StationIcon type={type} />);
@@ -185,6 +187,34 @@ export const MapArea: React.FC<MapAreaProps> = ({
                             eventHandlers={{
                                 click: (e) => {
                                     L.DomEvent.stopPropagation(e);
+                                    
+                                    // Calculate and print segment details
+                                    if (calc && calc.path && calc.path.length > 1) {
+                                        console.group(`Route Details for Station: ${station.type} (${station.id})`);
+                                        console.log('Total Cable Distance:', calc.cableDistance.toFixed(3), 'km');
+                                        
+                                        let runningTotal = 0;
+                                        const segments = [];
+                                        
+                                        for (let i = 0; i < calc.path.length - 1; i++) {
+                                            const p1 = calc.path[i];
+                                            const p2 = calc.path[i+1];
+                                            const segDist = getDistance(p1, p2);
+                                            runningTotal += segDist;
+                                            
+                                            segments.push({
+                                                segment: i + 1,
+                                                from: `[${p1.lat.toFixed(4)}, ${p1.lng.toFixed(4)}]`,
+                                                to: `[${p2.lat.toFixed(4)}, ${p2.lng.toFixed(4)}]`,
+                                                distance: segDist.toFixed(3) + ' km',
+                                                cumulative: runningTotal.toFixed(3) + ' km'
+                                            });
+                                        }
+                                        
+                                        console.table(segments);
+                                        console.groupEnd();
+                                    }
+
                                     onStationClick(station.id);
                                 }
                             }}
@@ -207,6 +237,34 @@ export const MapArea: React.FC<MapAreaProps> = ({
                                 // Prevent click when ending drag
                                 if (!draggingIdRef.current) {
                                     L.DomEvent.stopPropagation(e);
+
+                                    // Calculate and print segment details
+                                    if (calc && calc.path && calc.path.length > 1) {
+                                        console.group(`Route Details for Station: ${station.type} (${station.id})`);
+                                        console.log('Total Cable Distance:', calc.cableDistance.toFixed(3), 'km');
+                                        
+                                        let runningTotal = 0;
+                                        const segments = [];
+                                        
+                                        for (let i = 0; i < calc.path.length - 1; i++) {
+                                            const p1 = calc.path[i];
+                                            const p2 = calc.path[i+1];
+                                            const segDist = getDistance(p1, p2);
+                                            runningTotal += segDist;
+                                            
+                                            segments.push({
+                                                segment: i + 1,
+                                                from: `[${p1.lat.toFixed(4)}, ${p1.lng.toFixed(4)}]`,
+                                                to: `[${p2.lat.toFixed(4)}, ${p2.lng.toFixed(4)}]`,
+                                                distance: segDist.toFixed(3) + ' km',
+                                                cumulative: runningTotal.toFixed(3) + ' km'
+                                            });
+                                        }
+                                        
+                                        console.table(segments);
+                                        console.groupEnd();
+                                    }
+
                                     onStationClick(station.id);
                                 }
                             },

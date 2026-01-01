@@ -103,10 +103,10 @@ function App() {
                   tNode.position, 
                   d_S1_Hub, 
                   d_S2_Hub, 
-                  2.0 
+                  4.0 
               );
 
-              const weightedCost = opt.cableDist * 2.0 + (opt.totalDist - opt.cableDist);
+              const weightedCost = opt.cableDist * 4.0 + (opt.totalDist - opt.cableDist);
 
               if (weightedCost < minWeightedCost) {
                   minWeightedCost = weightedCost;

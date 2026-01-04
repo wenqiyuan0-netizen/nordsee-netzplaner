@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { MapArea } from './components/MapArea';
 import { Sidebar } from './components/Sidebar';
+import { HMIEnergyOverview } from './components/HMIEnergyOverview';
 import { GridNode, GridLink, Station, StationType, LatLng, NetworkCalculation } from './types';
 import { getDistance, projectPointOnSegment, findShortestPath } from './utils/geometry';
 import { findOptimalPointOnSegment, findTargetPointOnSegment } from './utils/optimization';
@@ -20,6 +21,9 @@ function App() {
   // Reuse this for selecting a node (to link OR to edit)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [movingStationId, setMovingStationId] = useState<string | null>(null);
+
+  // HMI State
+  const [showHMI, setShowHMI] = useState(false);
 
   // Measurement state
   const [measurePoints, setMeasurePoints] = useState<LatLng[]>([]);
@@ -641,6 +645,7 @@ function App() {
             }}
             onExportGrid={handleExport}
             onImportGrid={handleImport}
+            onOpenHMI={() => setShowHMI(true)}
         />
       </div>
 
@@ -676,6 +681,13 @@ function App() {
             </div>
         )}
       </div>
+
+      {/* HMI Overlay */}
+      {showHMI && (
+        <div className="fixed inset-0 z-[2000] w-full h-full bg-slate-900 animate-in fade-in duration-300">
+            <HMIEnergyOverview onClose={() => setShowHMI(false)} />
+        </div>
+      )}
     </div>
   );
 }

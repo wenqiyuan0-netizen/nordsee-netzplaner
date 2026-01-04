@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Station, StationType, NetworkCalculation, GridNode, LatLng } from '../types';
 import { StationIconConfig } from './Icons';
-import { Trash2, Plus, AlertTriangle, CheckCircle, MapPin, Save, X, Ruler, Move } from 'lucide-react';
+import { Trash2, Plus, AlertTriangle, CheckCircle, MapPin, Save, X, Ruler, Move, MonitorPlay } from 'lucide-react';
 import { getDistance } from '../utils/geometry';
 
 interface SidebarProps {
@@ -26,6 +26,7 @@ interface SidebarProps {
   onMoveStation: (id: string) => void;
   onExportGrid: (type: 'BASIC' | 'FULL') => void;
   onImportGrid: (file: File) => void;
+  onOpenHMI: () => void;
 }
 
 const CoordinateInput = ({ 
@@ -114,7 +115,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearMeasurement,
   onMoveStation,
   onExportGrid,
-  onImportGrid
+  onImportGrid,
+  onOpenHMI
 }) => {
   const stationTypes = Object.values(StationType).filter(t => t !== StationType.Hauptstandort);
   const mainHub = stations.find(s => s.type === StationType.Hauptstandort);
@@ -145,6 +147,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 border-b bg-slate-50">
         <h1 className="text-xl font-bold text-slate-800">Nordsee Netzplaner</h1>
         <p className="text-xs text-slate-500 mt-1">Betrachtetes Einzugsgebiet: Schweden, Norwegen, Dänemark, Deutschland.</p>
+        
+        <button 
+          onClick={onOpenHMI}
+          className="mt-4 w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-sm"
+        >
+          <MonitorPlay size={16} />
+          HMI-System starten
+        </button>
       </div>
 
       <div className="p-4 space-y-6 flex-1">
